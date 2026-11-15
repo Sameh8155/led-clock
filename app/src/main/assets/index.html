@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000"><title>ساعة LED</title>
+<style>
+:root{--c:#ffb000;--b:1;--glow:1.3vmin;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#000;color:#ddd;font-family:'Segoe UI',Tahoma,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent}
+body{display:flex;align-items:center;justify-content:center;cursor:none}
+body.ui{cursor:default}
+body[data-n="1"]{--glow:.5vmin}
+#clock{--dh:min(34vh,25vw);display:flex;align-items:flex-end;gap:calc(var(--dh)*.12);direction:ltr;opacity:var(--b);transition:opacity 1.5s,transform 2s;filter:drop-shadow(0 0 var(--glow) var(--c))}
+#hm,#ss{display:flex;align-items:center;gap:calc(var(--dh)*.07)}
+#hm svg.dg{height:var(--dh)}
+#ss svg.dg{height:calc(var(--dh)*.38)}
+#ss{margin-bottom:calc(var(--dh)*.02)}
+.dg{width:auto;aspect-ratio:.6}
+.dg polygon{fill:var(--c);opacity:.055}
+.dg polygon.on{opacity:1}
+.cl{height:var(--dh);aspect-ratio:.2}
+.cl circle{fill:var(--c)}
+.cl{animation:bl 1s steps(1) infinite}
+@keyframes bl{50%{opacity:.1}}
+@media(prefers-reduced-motion:reduce){.cl{animation:none}}
+#ap{color:var(--c);align-self:flex-start;font-size:calc(var(--dh)*.12)}
+#info{position:fixed;left:0;right:0;bottom:calc(8vh + env(safe-area-inset-bottom,0px));text-align:center;color:var(--c);opacity:calc(var(--b)*.8);font-size:clamp(14px,3.2vmin,30px);line-height:1.7}
+#next{font-size:.85em;opacity:.75}
+#bar{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));left:0;right:0;display:flex;justify-content:center;gap:10px;opacity:0;pointer-events:none;transition:opacity .3s}
+body.ui #bar{opacity:1;pointer-events:auto}
+button,select,input{font:inherit;color:#eee}
+.btn{background:#1c1c1c;border:1px solid #444;border-radius:12px;min-width:52px;height:48px;padding:0 16px;font-size:18px;cursor:pointer}
+.btn:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #6cf;outline-offset:2px}
+#hint{position:fixed;top:calc(70px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);background:#1c1c1c;border:1px solid #555;border-radius:12px;padding:10px 16px;font-size:15px;max-width:90vw;text-align:center}
+dialog{background:#141414;color:#eee;border:1px solid #444;border-radius:16px;width:min(560px,94vw);max-height:90vh;padding:18px 20px}
+dialog::backdrop{background:rgba(0,0,0,.7)}
+h2{margin:0 0 12px;font-size:20px}
+label{display:block;margin:12px 0 4px;color:#aaa;font-size:14px}
+select,input[type=time],input[type=text]{width:100%;background:#222;border:1px solid #555;border-radius:10px;padding:10px;font-size:16px}
+input[type=color]{width:100%;height:42px;background:#222;border:1px solid #555;border-radius:10px;padding:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.chips label{display:inline-flex;margin:0;align-items:center;background:#222;border:1px solid #555;border-radius:20px;padding:6px 12px;cursor:pointer;color:#ddd}
+.chips input{margin-inline-end:6px}
+.al{display:flex;align-items:center;gap:10px;background:#1d1d1d;border-radius:12px;padding:10px 12px;margin:8px 0}
+.al b{font-size:24px;direction:ltr}.al span{flex:1;color:#aaa;font-size:14px}
+#ring{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:9;text-align:center;animation:fl 1s steps(1) infinite}
+@keyframes fl{50%{background:#2a0000}}
+#ring[hidden],#hint[hidden]{display:none}
+#ring .t{font-size:min(22vw,160px);color:var(--c);direction:ltr;font-weight:700}
+#ring .btn{height:64px;font-size:22px;min-width:200px}
+.note{font-size:13px;color:#999;margin-top:14px;line-height:1.7}
+</style></head><body>
+<div id="clock"><div id="hm"></div><div id="ss"></div></div>
+<div id="info"><div id="dt"></div><div id="next"></div></div>
+<div id="bar">
+<button class="btn" id="bA" aria-label="المنبهات">⏰ المنبهات</button>
+<button class="btn" id="bS" aria-label="الإعدادات">⚙ الإعدادات</button>
+<button class="btn" id="bF" aria-label="ملء الشاشة">⛶</button>
+</div>
+<div id="hint">المس الشاشة مرة لتفعيل صوت المنبه ومنع الشاشة من النوم</div>
+
+<dialog id="dA"><h2>المنبهات</h2><div id="list"></div>
+<label>وقت المنبه</label><input type="time" id="at" value="06:30">
+<label>اسم المنبه (اختياري)</label><input type="text" id="al" placeholder="مثلاً: صلاة الفجر">
+<label>الأيام (من غير اختيار = مرة واحدة)</label>
+<div class="row chips" id="days"></div>
+<div class="row"><button class="btn" id="add">إضافة منبه</button><button class="btn" id="tst">تجربة الصوت</button><button class="btn" onclick="this.closest('dialog').close()">إغلاق</button></div></dialog>
+
+<dialog id="dS"><h2>الإعدادات</h2>
+<label>الوضع</label><select id="mode"><option value="auto">تلقائي (نهاري/ليلي حسب الوقت)</option><option value="day">نهاري دايمًا</option><option value="night">ليلي دايمًا</option></select>
+<div class="row"><div style="flex:1"><label>بداية الليل</label><input type="time" id="ns"></div><div style="flex:1"><label>نهاية الليل</label><input type="time" id="ne"></div></div>
+<div class="row"><div style="flex:1"><label>لون النهار</label><input type="color" id="dc"></div><div style="flex:1"><label>لون الليل</label><input type="color" id="nc"></div></div>
+<label>سطوع الليل: <span id="nbv"></span>%</label><input type="range" id="nb" min="5" max="100" style="width:100%">
+<label>نظام الساعة</label><select id="h24"><option value="0">١٢ ساعة</option><option value="1">٢٤ ساعة</option></select>
+<label>الثواني</label><select id="sec"><option value="1">تظهر</option><option value="0">مخفية</option></select>
+<label>التاريخ</label><select id="date"><option value="1">يظهر</option><option value="0">مخفي</option></select>
+<div class="note" id="wk"></div>
+<div class="note">الساعة بتحرّك نفسها سنتيمتر كل دقيقة عشان الشاشة ما يحصلش لها "حرق صورة".</div>
+<div class="row"><button class="btn" onclick="this.closest('dialog').close()">تم</button></div></dialog>
+
+<div id="ring" hidden><div class="t" id="rt"></div><div id="rl" style="font-size:24px;color:#ddd"></div>
+<button class="btn" id="snz">غفوة ٥ دقايق</button><button class="btn" id="stp">إيقاف المنبه</button></div>
+
+<script>
+const $=s=>document.querySelector(s),NS='http://www.w3.org/2000/svg',pad=n=>String(n).padStart(2,'0');
+const DEF={mode:'auto',ns:'19:00',ne:'06:00',dc:'#ffb000',nc:'#e02020',nb:55,h24:0,sec:1,date:1,al:[]};
+let S=Object.assign({},DEF);try{Object.assign(S,JSON.parse(localStorage.getItem('ledclock')||'{}'))}catch(e){}
+const NA=window.LedNative;
+if(NA){try{const x=JSON.parse(NA.getAlarms()||'[]');if(x.length)S.al=x}catch(e){}}
+function pushAl(){try{if(NA)NA.setAlarms(JSON.stringify(S.al))}catch(e){}}
+const save=()=>{try{localStorage.setItem('ledclock',JSON.stringify(S))}catch(e){}pushAl()};
+/* ---------- أرقام LED ---------- */
+const poly=(t,c,a,b)=>t=='h'?`${a},${c} ${a+5},${c-5} ${b-5},${c-5} ${b},${c} ${b-5},${c+5} ${a+5},${c+5}`:`${c},${a} ${c+5},${a+5} ${c+5},${b-5} ${c},${b} ${c-5},${b-5} ${c-5},${a+5}`;
+const SG={a:['h',6,9,51],g:['h',50,9,51],d:['h',94,9,51],f:['v',6,11,47],b:['v',54,11,47],e:['v',6,53,89],c:['v',54,53,89]};
+const DG=['abcdef','bc','abdeg','abcdg','bcfg','acdfg','acdefg','abc','abcdefg','abcdfg'];
+function mk(){const s=document.createElementNS(NS,'svg');s.setAttribute('viewBox','0 0 60 100');s.setAttribute('class','dg');for(const k in SG){const p=document.createElementNS(NS,'polygon');p.setAttribute('points',poly(...SG[k]));p.dataset.k=k;s.append(p)}return s}
+function colon(){const s=document.createElementNS(NS,'svg');s.setAttribute('viewBox','0 0 20 100');s.setAttribute('class','cl');[33,67].forEach(y=>{const c=document.createElementNS(NS,'circle');c.setAttribute('cx',10);c.setAttribute('cy',y);c.setAttribute('r',7);s.append(c)});return s}
+function setD(s,n){const v=n==null?'x':n;if(s._v===v)return;s._v=v;s.querySelectorAll('polygon').forEach(p=>p.classList.toggle('on',n!=null&&DG[n].includes(p.dataset.k)))}
+const D=[mk(),mk(),mk(),mk()],Q=[mk(),mk()];
+$('#hm').append(D[0],D[1],colon(),D[2],D[3]);$('#ss').append(Q[0],Q[1]);
+const ap=document.createElement('div');ap.id='ap';$('#ss').append(ap);
+/* ---------- نهاري / ليلي ---------- */
+const mins=t=>{const a=t.split(':');return +a[0]*60+ +a[1]};
+function isNight(d){if(S.mode=='night')return true;if(S.mode=='day')return false;const m=d.getHours()*60+d.getMinutes(),a=mins(S.ns),b=mins(S.ne);return a<=b?(m>=a&&m<b):(m>=a||m<b)}
+/* ---------- الساعة ---------- */
+const F=(o,l)=>new Intl.DateTimeFormat(l,o);
+const fG=F({weekday:'long',day:'numeric',month:'long'},'ar-u-nu-latn'),fH=F({day:'numeric',month:'long',year:'numeric'},'ar-SA-u-ca-islamic-umalqura-nu-latn');
+let lastMin=-1,fired={},snoozeAt=0;
+function tick(){
+ const d=new Date(),H=d.getHours(),M=d.getMinutes(),X=d.getSeconds(),n=isNight(d);
+ const h=S.h24?H:(H%12||12),t=pad(h);
+ setD(D[0],(S.h24||h>=10)?+t[0]:null);setD(D[1],+t[1]);setD(D[2],Math.floor(M/10));setD(D[3],M%10);
+ setD(Q[0],Math.floor(X/10));setD(Q[1],X%10);
+ $('#ss').style.display=S.sec?'flex':'none';
+ ap.textContent=S.h24?'':(H<12?'ص':'م');ap.style.display=S.h24?'none':'block';
+ document.body.dataset.n=n?1:0;
+ document.documentElement.style.setProperty('--c',n?S.nc:S.dc);
+ document.documentElement.style.setProperty('--b',n?S.nb/100:1);
+ $('#dt').textContent=S.date?fG.format(d)+'  •  '+fH.format(d):'';
+ if(M!==lastMin){lastMin=M;const r=()=>(Math.random()*2-1).toFixed(2);$('#clock').style.transform=`translate(${r()}vw,${r()}vh)`;nextAl(d)}
+ const key=d.toDateString()+H+M;
+ if(!NA)S.al.forEach(a=>{if(a.on&&a.t==pad(H)+':'+pad(M)&&(!a.d.length||a.d.includes(d.getDay()))&&fired[a.id]!==key){fired[a.id]=key;ring(a);if(!a.d.length){a.on=false;save();renderAl()}}});
+ if(!NA&&snoozeAt&&Date.now()>=snoozeAt){snoozeAt=0;ring({t:pad(H)+':'+pad(M),l:'غفوة'})}
+ if(NA){try{const r=NA.ringing();if(r&&$('#ring').hidden){const q=(NA.info()||'').split('|');showRing({t:q[0]||'',l:q[1]||''})}else if(!r&&!$('#ring').hidden){hideRing();S.al=JSON.parse(NA.getAlarms()||'[]');renderAl();nextAl(new Date())}}catch(e){}}
+}
+function nextAl(d){let best=null;S.al.filter(a=>a.on).forEach(a=>{for(let o=0;o<8;o++){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()+o,...a.t.split(':').map(Number));if(x>d&&(!a.d.length||a.d.includes(x.getDay()))){if(!best||x<best.x)best={x,a};break}}});
+ $('#next').textContent=best?'⏰ المنبه القادم '+pad(best.x.getHours())+':'+pad(best.x.getMinutes())+(best.a.l?' — '+best.a.l:''):''}
+/* ---------- الصوت وعدم النوم ---------- */
+let ac,rt,ringing=null,wl=null;
+function unlock(){try{ac=ac||new(window.AudioContext||window.webkitAudioContext)();ac.resume()}catch(e){}$('#hint').hidden=true;lock()}
+async function lock(){try{if('wakeLock' in navigator&&!wl){wl=await navigator.wakeLock.request('screen');wl.onrelease=()=>{wl=null;upd()}}}catch(e){}upd()}
+function upd(){$('#wk').textContent=NA?'✓ الشاشة شغالة دايمًا، والمنبه بيرن حتى لو التطبيق مقفول أو الجهاز ساكن.':wl?'✓ الشاشة هتفضل شغالة ومش هتنام طول ما الصفحة مفتوحة.':'الشاشة ممكن تنام: متصفحك مش داعم "منع النوم" أو الصفحة لازم تتفتح من https أو من ملف على الجهاز.'}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)lock()});
+function beeps(){if(!ac)return;const n=ac.currentTime;for(let i=0;i<4;i++){const o=ac.createOscillator(),g=ac.createGain();o.type='square';o.frequency.value=1175;o.connect(g);g.connect(ac.destination);const s=n+i*.25;g.gain.setValueAtTime(.0001,s);g.gain.exponentialRampToValueAtTime(.35,s+.02);g.gain.exponentialRampToValueAtTime(.0001,s+.18);o.start(s);o.stop(s+.2)}try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}
+function showRing(a){ringing=a;$('#rt').textContent=a.t;$('#rl').textContent=a.l||'حان وقت المنبه';$('#ring').hidden=false}
+function hideRing(){$('#ring').hidden=true;ringing=null}
+function ring(a){showRing(a);beeps();clearInterval(rt);rt=setInterval(beeps,1500)}
+function stopRing(){clearInterval(rt);hideRing();if(NA)try{NA.stop()}catch(e){}try{navigator.vibrate&&navigator.vibrate(0)}catch(e){}}
+$('#stp').onclick=stopRing;
+$('#snz').onclick=()=>{if(NA){try{NA.snooze()}catch(e){}hideRing();return}stopRing();snoozeAt=Date.now()+5*60000};
+/* ---------- المنبهات ---------- */
+const DN=['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
+DN.forEach((n,i)=>$('#days').insertAdjacentHTML('beforeend',`<label><input type="checkbox" value="${i}" checked>${n}</label>`));
+function fmt(t){if(S.h24)return t;const[a,b]=t.split(':').map(Number);return (a%12||12)+':'+pad(b)+(a<12?' ص':' م')}
+function renderAl(){const L=$('#list');L.innerHTML='';if(!S.al.length)L.innerHTML='<div class="note">مفيش منبهات. اختار وقت واضغط "إضافة منبه".</div>';
+ S.al.forEach(a=>{const r=document.createElement('div');r.className='al';
+  r.innerHTML=`<input type="checkbox" ${a.on?'checked':''} aria-label="تشغيل"><b>${fmt(a.t)}</b><span>${a.l||''} ${a.d.length==7?'كل يوم':a.d.length?a.d.map(i=>DN[i]).join('، '):'مرة واحدة'}</span><button class="btn" aria-label="حذف">🗑</button>`;
+  r.querySelector('input').onchange=e=>{a.on=e.target.checked;save();nextAl(new Date())};
+  r.querySelector('button').onclick=()=>{S.al=S.al.filter(x=>x!==a);save();renderAl();nextAl(new Date())};L.append(r)})}
+$('#add').onclick=()=>{unlock();const d=[...document.querySelectorAll('#days input:checked')].map(x=>+x.value);S.al.push({id:Date.now(),t:$('#at').value||'06:30',l:$('#al').value.trim(),d,on:true});$('#al').value='';save();renderAl();nextAl(new Date())};
+$('#tst').onclick=()=>{unlock();setTimeout(beeps,50)};
+/* ---------- الإعدادات ---------- */
+const bind=(id,k,num)=>{const e=$('#'+id);e.value=S[k];e.oninput=()=>{S[k]=num?+e.value:e.value;if(id=='nb')$('#nbv').textContent=S.nb;save();tick()}};
+[['mode','mode'],['ns','ns'],['ne','ne'],['dc','dc'],['nc','nc'],['nb','nb',1],['h24','h24',1],['sec','sec',1],['date','date',1]].forEach(a=>bind(...a));$('#nbv').textContent=S.nb;
+$('#bA').onclick=()=>{renderAl();$('#dA').showModal()};$('#bS').onclick=()=>{upd();$('#dS').showModal()};
+$('#bF').onclick=()=>{try{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()}catch(e){}};
+/* ---------- إظهار الأزرار عند اللمس ---------- */
+let ut;const showUI=()=>{document.body.classList.add('ui');clearTimeout(ut);ut=setTimeout(()=>document.body.classList.remove('ui'),4000)};
+['pointerdown','pointermove','keydown'].forEach(ev=>document.addEventListener(ev,showUI));
+document.addEventListener('pointerdown',unlock,{once:true});
+document.addEventListener('keydown',unlock,{once:true});
+if(NA)$('#hint').hidden=true;
+tick();setInterval(tick,1000);nextAl(new Date());lock();pushAl();
+</script></body></html>
